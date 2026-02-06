@@ -1,11 +1,13 @@
+import os
 import asyncio
 from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command
-from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
-from lexicon import LEXICON
+from aiogram.utils.keyboard import ReplyKeyboardBuilder
 import database as db
+from lexicon import LEXICON
 
-TOKEN = "8330528237:AAExVDZ60O2T-EHZAl0TxsmVrKGya2LPjbY"
+# Берем токен из настроек Koyeb
+TOKEN = os.getenv("TOKEN")
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
@@ -13,25 +15,28 @@ dp = Dispatcher()
 async def start(message: types.Message):
     lang, bal = await db.get_user_data(message.from_user.id)
     kb = ReplyKeyboardBuilder()
-    for btn in [LEXICON[lang]['play'], LEXICON[lang]['help'], LEXICON[lang]['lang']]:
-        kb.button(text=btn)
-    await message.answer(f"{LEXICON[lang]['start']}\n💰 Баланс: {bal}", reply_markup=kb.as_markup(resize_keyboard=True))
+    # Добавляем кнопки ровно так, как они в словаре
+    kb.button(text=LEXICON[lang]['play'])
+    kb.button(text=LEXICON[lang]['help'])
+    kb.button(text=LEXICON[lang]['lang'])
+    kb.adjust(2, 1) # Красивое расположение 2 в ряд и 1 снизу
+    
+    await message.answer(
+        f"{LEXICON[lang]['start']}\n💰 Баланс: {bal}", 
+        reply_markup=kb.as_markup(resize_keyboard=True)
+    )
 
-@dp.message(F.text.in_(['Язык 🌐', 'Language 🌐', 'Мова 🌐', 'Тіл 🌐']))
-async def change_lang(message: types.Message):
-    kb = InlineKeyboardBuilder()
-    kb.button(text="Русский 🇷🇺", callback_data="set_ru")
-    kb.button(text="English 🇺🇸", callback_data="set_en")
-    kb.button(text="Українська 🇺🇦", callback_data="set_uk")
-    kb.button(text="Қазақша 🇰🇿", callback_data="set_kk")
-    await message.answer("Выберите язык / Select language:", reply_markup=kb.as_markup())
+# Обработка кнопки "Играть" (учитываем все языки и эмодзи)
+@dp.message(F.text.contains("Играть") | F.text.contains("Play") | F.text.contains("Грати") | F.text.contains("Ойнау"))
+async def play_menu(message: types.Message):
+    await message.answer("🎰 Запускаю слоты...")
+    msg = await message.answer_dice(emoji="🎰")
+    # Тут позже добавим логику выигрыша из games.py
 
-@dp.callback_query(F.data.startswith("set_"))
-async def set_language(callback: types.CallbackQuery):
-    new_lang = callback.data.split("_")[1]
-    await db.update_lang(callback.from_user.id, new_lang)
-    await callback.answer("Готово / Done")
-    await callback.message.answer("Язык изменен! Введите /start")
+# Обработка кнопки "Помощь"
+@dp.message(F.text.contains("Помощь") | F.text.contains("Help") | F.text.contains("Допомога") | F.text.contains("Көмек"))
+async def help_cmd(message: types.Message):
+    await message.answer("🆘 Туториал: Нажимай 'Играть', крути слоты и копи монеты! Связь: @твой_ник")
 
 async def main():
     await db.init_db()
@@ -39,4 +44,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
+    
